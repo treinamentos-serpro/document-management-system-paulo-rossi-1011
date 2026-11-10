@@ -12,6 +12,7 @@ const storageDirectory = process.env.STORAGE_DIR
   ? path.resolve(projectRoot, process.env.STORAGE_DIR)
   : path.resolve(__dirname, '../../storage');
 const maxFileSizeBytes = Number(process.env.MAX_FILE_SIZE_BYTES || 10485760);
+const maxStorageBytes = Number(process.env.MAX_STORAGE_BYTES || 2147483648);
 const allowedExtensions = (process.env.ALLOWED_FILE_EXTENSIONS || '.pdf,.doc,.docx,.txt,.rtf')
   .split(',')
   .map((extension) => extension.trim().toLowerCase())
@@ -20,6 +21,9 @@ const allowedExtensions = (process.env.ALLOWED_FILE_EXTENSIONS || '.pdf,.doc,.do
 
 if (!Number.isSafeInteger(maxFileSizeBytes) || maxFileSizeBytes <= 0) {
   throw new Error('MAX_FILE_SIZE_BYTES deve ser um inteiro positivo.');
+}
+if (!Number.isSafeInteger(maxStorageBytes) || maxStorageBytes <= 0) {
+  throw new Error('MAX_STORAGE_BYTES deve ser um inteiro positivo.');
 }
 if (allowedExtensions.length === 0) {
   throw new Error('ALLOWED_FILE_EXTENSIONS deve conter pelo menos uma extensão.');
@@ -40,6 +44,55 @@ const repository = createDocumentRepository(storageDirectory);
 const service = createDocumentService(repository);
 const controller = createDocumentController(service);
 const router = express.Router();
+let reservedStorageBytes = 0;
+
+async function getStorageUsage() {
+  try {
+    const entries = await fs.readdir(storageDirectory, { withFileTypes: true });
+    const fileStats = await Promise.all(
+      entries
+        .filter((entry) => entry.isFile())
+        .map((entry) => fs.stat(path.join(storageDirectory, entry.name))),
+    );
+    return fileStats.reduce((total, stats) => total + stats.size, 0);
+  } catch (error) {
+    if (error.code === 'ENOENT') return 0;
+    throw error;
+  }
+}
+
+async function reserveStorage(req, res, next) {
+  const contentLength = Number(req.get('content-length'));
+  const reservationBytes = Number.isSafeInteger(contentLength) && contentLength > 0
+    ? Math.min(contentLength, maxFileSizeBytes)
+    : maxFileSizeBytes;
+
+  try {
+    const storageUsage = await getStorageUsage();
+    if (storageUsage + reservedStorageBytes + reservationBytes > maxStorageBytes) {
+      res.status(507).json({
+        error: {
+          code: 'STORAGE_LIMIT_REACHED',
+          message: 'O armazenamento local atingiu o limite configurado.',
+        },
+      });
+      return;
+    }
+
+    reservedStorageBytes += reservationBytes;
+    let reservationReleased = false;
+    const releaseReservation = () => {
+      if (reservationReleased) return;
+      reservedStorageBytes -= reservationBytes;
+      reservationReleased = true;
+    };
+    res.once('finish', releaseReservation);
+    res.once('close', releaseReservation);
+    next();
+  } catch (error) {
+    next(error);
+  }
+}
 
 const upload = multer({
   storage: multer.diskStorage({
@@ -76,7 +129,7 @@ const upload = multer({
   },
 });
 
-router.post('/upload', upload.single('file'), controller.upload);
+router.post('/upload', reserveStorage, upload.single('file'), controller.upload);
 router.get('/documents', controller.list);
 router.get('/documents/:id/download', controller.download);
 
