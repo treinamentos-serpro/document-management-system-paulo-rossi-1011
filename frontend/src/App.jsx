@@ -1,20 +1,114 @@
-// Seed do componente raiz do Document Management System.
-//
-// Este é apenas um ponto de partida mínimo. Durante o Passo 3 você vai usar o
-// Agent Mode do GitHub Copilot para construir os componentes:
-//   - components/UploadComponent
-//   - components/DocumentList
-//   - components/DownloadButton
-// e o serviço services/ que consome a API do backend via fetch.
+import { useEffect, useState } from 'react';
+import DocumentList from './components/DocumentList.jsx';
+import UploadComponent from './components/UploadComponent.jsx';
+import { listDocuments, uploadDocument } from './services/documentApi.js';
+import './App.css';
 
 export default function App() {
+  const [documents, setDocuments] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [listError, setListError] = useState('');
+
+  useEffect(() => {
+    const controller = new AbortController();
+    listDocuments({ signal: controller.signal })
+      .then(setDocuments)
+      .catch((error) => {
+        if (error.name !== 'AbortError') setListError(error.message);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsLoading(false);
+      });
+    return () => controller.abort();
+  }, []);
+
+  async function handleUpload(file) {
+    const document = await uploadDocument(file);
+    setDocuments((currentDocuments) => [document, ...currentDocuments]);
+  }
+
+  async function handleRefresh() {
+    setIsRefreshing(true);
+    setListError('');
+    try {
+      setDocuments(await listDocuments());
+    } catch (error) {
+      setListError(error.message);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }
+
   return (
-    <main style={{ fontFamily: 'system-ui, sans-serif', padding: '2rem' }}>
-      <h1>Document Management System</h1>
-      <p>
-        Seed do frontend. Construa a interface durante o Passo 3 usando o Agent
-        Mode do GitHub Copilot.
-      </p>
+    <main className="app-shell">
+      <header className="topbar">
+        <a className="brand" href="#inicio" aria-label="DMS, início">
+          <span className="brand-mark" aria-hidden="true">D</span>
+          <span>ARQUIVO<span className="brand-dot">.</span></span>
+        </a>
+        <div className="storage-indicator">
+          <span className="status-light" aria-hidden="true" />
+          STORAGE LOCAL
+        </div>
+      </header>
+
+      <section className="page-heading" id="inicio">
+        <div>
+          <p className="eyebrow">DOCUMENT MANAGEMENT SYSTEM</p>
+          <h1>Seus documentos,<br />em ordem.</h1>
+        </div>
+        <p className="heading-note">Biblioteca de arquivos<br />da sessão atual</p>
+      </section>
+
+      <section className="workspace" aria-label="Gerenciamento de documentos">
+        <aside className="upload-column">
+          <UploadComponent onUpload={handleUpload} />
+          <div className="local-note">
+            <span className="local-note-mark" aria-hidden="true">i</span>
+            <p>Os arquivos ficam neste servidor. O catálogo é reiniciado quando o serviço reinicia.</p>
+          </div>
+        </aside>
+
+        <section className="documents-column" aria-labelledby="documents-title">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">BIBLIOTECA</p>
+              <h2 id="documents-title">Documentos</h2>
+            </div>
+            <button
+              className="icon-button refresh-button"
+              type="button"
+              onClick={handleRefresh}
+              disabled={isLoading || isRefreshing}
+              aria-label="Atualizar lista de documentos"
+              title="Atualizar lista"
+            >
+              <span aria-hidden="true">↻</span>
+            </button>
+          </div>
+
+          {listError && (
+            <div className="notice notice-error" role="alert">
+              <span>{listError}</span>
+              <button type="button" onClick={handleRefresh} disabled={isRefreshing}>
+                Tentar novamente
+              </button>
+            </div>
+          )}
+
+          {listError && documents.length === 0 ? (
+            <p className="list-state" role="status">A lista está indisponível.</p>
+          ) : (
+            <DocumentList documents={documents} isLoading={isLoading} />
+          )}
+        </section>
+      </section>
+
+      <footer className="page-footer">
+        <span>DMS <span aria-hidden="true">/</span> MVP</span>
+        <span>METADADOS EM MEMÓRIA</span>
+      </footer>
     </main>
   );
 }
