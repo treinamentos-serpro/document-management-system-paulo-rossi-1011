@@ -43,7 +43,7 @@ O backend atualmente expõe somente `GET /health`; os endpoints DMS descritos aq
 | --- | --- |
 | RNF-01 | O conteúdo dos arquivos deve ser gravado somente no filesystem local, em `backend/storage` por padrão, usando Multer com `diskStorage`. Não utilizar armazenamento externo. |
 | RNF-02 | Os metadados devem ser mantidos em memória nesta fase. Reiniciar o processo limpa o catálogo, mesmo que os arquivos continuem no disco. |
-| RNF-03 | Configurações operacionais devem ser obtidas de variáveis de ambiente, com defaults documentados: `PORT=3000`, `STORAGE_DIR=backend/storage`, `MAX_FILE_SIZE_BYTES=10485760` (10 MiB), `MAX_STORAGE_BYTES=2147483648` (2 GiB) e `ALLOWED_FILE_EXTENSIONS=.pdf,.doc,.docx,.txt,.rtf`. |
+| RNF-03 | Configurações operacionais devem ser obtidas de variáveis de ambiente, com defaults documentados: `PORT=3000`, `STORAGE_DIR=backend/storage`, `MAX_FILE_SIZE_BYTES=10485760` (10 MiB) e `ALLOWED_FILE_EXTENSIONS=.pdf,.doc,.docx,.txt,.rtf`. |
 | RNF-04 | O tipo de arquivo deve ser validado contra a allowlist configurada; a validação de extensão e o MIME informado pelo cliente não devem ser considerados prova de autenticidade do conteúdo. A implementação deve impor o limite de tamanho durante o recebimento. |
 | RNF-05 | O nome físico salvo deve ser gerado pelo servidor a partir de identificador único, sem usar o nome original como caminho. O nome original deve ser preservado apenas como metadado e nome sugerido no download. |
 | RNF-06 | O backend deve tratar erros de validação, filesystem e leitura de arquivo nos limites HTTP; respostas de erro não devem conter detalhes internos. |
@@ -138,7 +138,6 @@ O navegador deve tratar o corpo de sucesso como arquivo, não como JSON. O nome 
 | `404` | `DOCUMENT_NOT_FOUND` | ID desconhecido ou arquivo local ausente. |
 | `413` | `FILE_TOO_LARGE` | Arquivo ultrapassa `MAX_FILE_SIZE_BYTES`. |
 | `415` | `INVALID_FILE_TYPE` | Arquivo não corresponde à allowlist configurada. |
-| `507` | `STORAGE_LIMIT_REACHED` | O storage local atingiu `MAX_STORAGE_BYTES`. |
 | `500` | `STORAGE_ERROR` | Falha de gravação ou leitura no filesystem. |
 | `500` | `INTERNAL_ERROR` | Falha inesperada, sem detalhes internos na resposta. |
 

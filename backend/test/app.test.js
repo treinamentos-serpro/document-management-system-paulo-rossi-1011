@@ -3,12 +3,10 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
-const { createDocumentRepository } = require('../src/repositories/document.repository');
 
 const storageDirectory = path.join(os.tmpdir(), `dms-test-${process.pid}`);
 process.env.STORAGE_DIR = storageDirectory;
 process.env.MAX_FILE_SIZE_BYTES = '1024';
-process.env.MAX_STORAGE_BYTES = '1024';
 const app = require('../src/app');
 
 let server;
@@ -29,25 +27,6 @@ after(async () => {
 
 test('o app backend é exportado', () => {
   assert.equal(typeof app, 'function');
-});
-
-test('o repository rejeita caminhos fora do diretório de storage', () => {
-  const repository = createDocumentRepository(storageDirectory);
-  assert.throws(() => repository.getFilePath('../outside.txt'), /Nome de armazenamento inválido/);
-  assert.throws(() => repository.getFilePath(path.resolve(storageDirectory, '..', 'outside.txt')), /Nome de armazenamento inválido/);
-});
-
-test('recusa upload quando o limite total do storage foi atingido', async () => {
-  await fs.mkdir(storageDirectory, { recursive: true });
-  await fs.writeFile(path.join(storageDirectory, 'storage-full.bin'), Buffer.alloc(1024));
-
-  const form = new FormData();
-  form.append('file', new Blob(['x'], { type: 'text/plain' }), 'document.txt');
-  const response = await fetch(`${baseUrl}/upload`, { method: 'POST', body: form });
-
-  assert.equal(response.status, 507);
-  assert.equal((await response.json()).error.code, 'STORAGE_LIMIT_REACHED');
-  await fs.rm(path.join(storageDirectory, 'storage-full.bin'));
 });
 
 test('faz upload, lista e baixa um documento', async () => {

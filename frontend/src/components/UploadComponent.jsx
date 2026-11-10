@@ -16,13 +16,12 @@ export default function UploadComponent({ onUpload }) {
     event.preventDefault();
     if (!file || isUploading) return;
 
-    const form = event.currentTarget;
     setIsUploading(true);
     setFeedback(null);
     try {
       await onUpload(file);
       setFile(null);
-      form.reset();
+      event.currentTarget.reset();
       setFeedback({ type: 'success', message: 'Documento enviado.' });
     } catch (error) {
       setFeedback({ type: 'error', message: error.message });
