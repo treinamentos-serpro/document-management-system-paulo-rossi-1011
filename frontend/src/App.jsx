@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import DocumentList from './components/DocumentList.jsx';
 import UploadComponent from './components/UploadComponent.jsx';
 import { listDocuments, uploadDocument } from './services/documentApi.js';
@@ -9,34 +9,52 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [listError, setListError] = useState('');
+  const listRequestId = useRef(0);
 
   useEffect(() => {
     const controller = new AbortController();
+    const requestId = ++listRequestId.current;
     listDocuments({ signal: controller.signal })
-      .then(setDocuments)
+      .then((result) => {
+        if (requestId === listRequestId.current) setDocuments(result);
+      })
       .catch((error) => {
-        if (error.name !== 'AbortError') setListError(error.message);
+        if (error.name !== 'AbortError' && requestId === listRequestId.current) {
+          setListError(error.message);
+        }
       })
       .finally(() => {
-        if (!controller.signal.aborted) setIsLoading(false);
+        if (!controller.signal.aborted && requestId === listRequestId.current) {
+          setIsLoading(false);
+        }
       });
     return () => controller.abort();
   }, []);
 
   async function handleUpload(file) {
     const document = await uploadDocument(file);
-    setDocuments((currentDocuments) => [document, ...currentDocuments]);
+    listRequestId.current += 1;
+    setListError('');
+    setIsLoading(false);
+    setIsRefreshing(false);
+    setDocuments((currentDocuments) => (
+      currentDocuments.some((currentDocument) => currentDocument.id === document.id)
+        ? currentDocuments
+        : [document, ...currentDocuments]
+    ));
   }
 
   async function handleRefresh() {
+    const requestId = ++listRequestId.current;
     setIsRefreshing(true);
     setListError('');
     try {
-      setDocuments(await listDocuments());
+      const result = await listDocuments();
+      if (requestId === listRequestId.current) setDocuments(result);
     } catch (error) {
-      setListError(error.message);
+      if (requestId === listRequestId.current) setListError(error.message);
     } finally {
-      setIsRefreshing(false);
+      if (requestId === listRequestId.current) setIsRefreshing(false);
     }
   }
 
