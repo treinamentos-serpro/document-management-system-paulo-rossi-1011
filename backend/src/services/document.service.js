@@ -46,7 +46,7 @@ function createDocumentService(repository) {
       try {
         repository.save(document);
       } catch (error) {
-        await fs.unlink(file.path).catch(() => {});
+        await repository.removeFile(document.storageName).catch(() => {});
         throw createServiceError('STORAGE_ERROR', 500, 'Não foi possível salvar o documento.');
       }
 
@@ -65,7 +65,7 @@ function createDocumentService(repository) {
 
       const filePath = repository.getFilePath(document.storageName);
       try {
-        const stats = await fs.stat(filePath);
+        const stats = await repository.getFileStats(document.storageName);
         if (!stats.isFile()) {
           throw Object.assign(new Error('O caminho não é um arquivo.'), { code: 'ENOENT' });
         }
